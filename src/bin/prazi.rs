@@ -254,7 +254,7 @@ impl Registry {
                 let output = Command::new("rustup")
                     .args(&rustup_args)
                     .arg(version)
-                    .args(&["cargo", "rustc", "--lib", "--", "--emit=llvm-bc"])
+                    .args(&["cargo", "rustc", "--lib"])
                     .current_dir(&dir)
                     .output()
                     .expect("failed to execute cargo build");
