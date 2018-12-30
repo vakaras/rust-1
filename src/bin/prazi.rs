@@ -19,7 +19,7 @@ extern crate ini;
 extern crate rayon;
 
 use chrono::Utc;
-use clap::{App, Arg, SubCommand};
+use clap::{App, SubCommand};
 use crates_index::Index;
 use flate2::read::GzDecoder;
 use futures::{stream, Future, Stream};
@@ -274,32 +274,12 @@ impl Registry {
         });
     }
 
-    fn compile(&self, nightly: bool) {
-        let mut rustup_args = vec!["run"];
-        let version = if nightly {
-            rustup_args.push("nightly");
-            println!("running nightly compiler");
-            CONFIG
-                .section(Some("compiler"))
-                .unwrap()
-                .get("nightly")
-                .unwrap()
-        } else {
-            println!("running stable compiler");
-            CONFIG
-                .section(Some("compiler"))
-                .unwrap()
-                .get("stable")
-                .unwrap()
-        };
-
+    fn compile(&self) {
         self.list.par_iter().for_each(|krate| {
             let dir = krate.dir();
             if Path::new(&dir).exists() {
-                let output = Command::new("rustup")
-                    .args(&rustup_args)
-                    .arg(version)
-                    .args(&["cargo", "rustc", "--lib"])
+                let output = Command::new("cargo")
+                    .arg("build")
                     .current_dir(&dir)
                     .output()
                     .expect("failed to execute cargo build");
@@ -307,7 +287,7 @@ impl Registry {
                     println!("build done!");
                 } else {
                     println!("build failed");
-                    println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+                    eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
                 }
             }
         });
@@ -353,13 +333,7 @@ fn main() {
                 .about("construct Crate-wide LLVM callgraphss"),
         ).subcommand(
             SubCommand::with_name("build-crates")
-                .about("build all crates")
-                .arg(
-                    Arg::with_name("nightly")
-                        .long("nightly")
-                        .short("n")
-                        .help("run nightly compiler"),
-                ),
+                .about("build all crates"),
         ).get_matches();
 
     if let Some(_matches) = matches.subcommand_matches("download") {
@@ -385,10 +359,6 @@ fn main() {
 
     if let Some(_matches) = matches.subcommand_matches("build-crates") {
         reg.read();
-        if matches.is_present("nightly") {
-            reg.compile(true);
-        } else {
-            reg.compile(false);
-        }
+        reg.compile();
     }
 }
