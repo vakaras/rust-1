@@ -3,6 +3,7 @@
 // (c) 2018 - onwards Joseph Hejderup <joseph.hejderup@gmail.com>
 //
 // MIT/APACHE licensed -- check LICENSE files in top dir
+extern crate chrono;
 extern crate clap;
 extern crate crates_index;
 extern crate flate2;
@@ -17,6 +18,7 @@ extern crate glob;
 extern crate ini;
 extern crate rayon;
 
+use chrono::Utc;
 use clap::{App, Arg, SubCommand};
 use crates_index::Index;
 use flate2::read::GzDecoder;
@@ -71,6 +73,10 @@ fn config_latest_only() -> bool {
     value == "true"
 }
 
+fn path_exists(path: &str) -> bool {
+    Path::new(path).exists()
+}
+
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone)]
 pub struct PraziCrate {
     pub name: String,
@@ -94,6 +100,14 @@ impl PraziCrate {
 
     pub fn dir_src(&self) -> String {
         format!("{0}/crates/reg/{1}", &**PRAZI_DIR, self.name)
+    }
+
+    /// The file that marks that the crate was successfully downloaded and extracted.
+    pub fn success_file(&self) -> String {
+        format!(
+            "{0}/crates/reg/{1}/{2}_success",
+            &**PRAZI_DIR, self.name, self.version
+        )
     }
 
     pub fn has_bitcode(&self) -> bool {
@@ -149,22 +163,45 @@ impl Registry {
         let client = Client::new();
         let responses = stream::iter_ok(self.list.iter().cloned())
             .map(|krate| {
-                client
-                    .get(&krate.url_src())
-                    .send()
-                    .and_then(|mut res| {
-                        std::mem::replace(res.body_mut(), Decoder::empty()).concat2()
-                    }).map(move |body| {
-                        let mut archive = Archive::new(GzDecoder::new(body.as_ref()));
-                        let tar_dir = krate.dir_src();
-                        let dst_dir = krate.dir();
-                        archive.unpack(&tar_dir).unwrap();
-                        fs::rename(
-                            format!("/{0}/{1}-{2}", &tar_dir, krate.name, krate.version),
-                            &dst_dir,
-                        ).unwrap();
-                        println!("Untared: {:?}", &krate.url_src());
-                    })
+                let success_file = krate.success_file();
+                if !path_exists(&success_file) {
+                    Some(client
+                        .get(&krate.url_src())
+                        .send()
+                        .and_then(|mut res| {
+                            std::mem::replace(res.body_mut(), Decoder::empty()).concat2()
+                        }).map(move |body| {
+                            let mut archive = Archive::new(GzDecoder::new(body.as_ref()));
+                            let tar_dir = krate.dir_src();
+                            let dst_dir = krate.dir();
+                            if path_exists(&tar_dir) {
+                                if let Err(error) = fs::remove_dir_all(&tar_dir) {
+                                    eprintln!("Error deleting: {} {:?}", tar_dir, error);
+                                    return;
+                                }
+                            }
+                            if let Err(error) = archive.unpack(&tar_dir) {
+                                eprintln!("Error unpacking: {} {:?}", tar_dir, error);
+                                return;
+                            }
+                            if let Err(error) = fs::rename(
+                                format!("/{0}/{1}-{2}", &tar_dir, krate.name, krate.version),
+                                &dst_dir,
+                            ) {
+                                eprintln!("Error renaming: {} {:?}", dst_dir, error);
+                                return;
+                            }
+                            println!("Untared: {:?}", &krate.url_src());
+                            let timestamp = Utc::now();
+                            fs::write(
+                                &success_file,
+                                format!("{}", timestamp.format("%Y-%m-%d %H:%M:%S"))
+                            ).expect("Unable to write file");
+                        })
+                    )
+                } else {
+                    None
+                }
             }).buffer_unordered(N);
         let work = responses.for_each(|_| Ok(()));
         core.run(work)?;
