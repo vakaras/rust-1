@@ -338,8 +338,11 @@ fn main() {
 
     if let Some(_matches) = matches.subcommand_matches("download") {
         reg.read();
-        reg.download_src().unwrap();
-        println!("Done with downloading!");
+        if let Err(error) = reg.download_src() {
+            eprintln!("Error downloading: {:?}", error);
+        } else {
+            println!("Done with downloading!");
+        }
     }
 
     if let Some(_matches) = matches.subcommand_matches("validate") {
