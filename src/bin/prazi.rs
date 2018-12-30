@@ -54,11 +54,21 @@ lazy_static! {
 /// Get directory for crates.io index.
 fn config_index_dir() -> String {
     CONFIG
-        .section(Some("storage"))
+        .section(Some("crates"))
         .unwrap()
         .get("index_path")
         .unwrap()
         .to_string()
+}
+
+/// Do we need all crate versions or only the latest ones?
+fn config_latest_only() -> bool {
+    let value = CONFIG
+        .section(Some("crates"))
+        .unwrap()
+        .get("latest_only")
+        .unwrap();
+    value == "true"
 }
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone)]
@@ -117,12 +127,19 @@ impl Registry {
         let index = Index::new(config_index_dir());
         index.retrieve_or_update().expect("could not retrieve crates.io index");
         for krate in index.crates() {
-            for version in krate.versions().iter().rev() {
-                //we also consider yanked versions
+            if config_latest_only() {
                 self.list.push(PraziCrate {
                     name: krate.name().to_string(),
-                    version: version.version().to_string(),
+                    version: krate.latest_version().version().to_string(),
                 });
+            } else {
+                for version in krate.versions().iter().rev() {
+                    //we also consider yanked versions
+                    self.list.push(PraziCrate {
+                        name: krate.name().to_string(),
+                        version: version.version().to_string(),
+                    });
+                }
             }
         }
     }
