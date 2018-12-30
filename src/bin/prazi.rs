@@ -25,7 +25,6 @@ use glob::glob;
 use ini::Ini;
 use rayon::prelude::*;
 use reqwest::r#async::{Client, Decoder};
-use serde_json::{Error, Value};
 use tar::Archive;
 
 use std::fs;
@@ -175,14 +174,14 @@ impl Registry {
 
                 if output.status.success() {
                     //  println!("Valid manifest");
-                    let data = String::from_utf8_lossy(&output.stdout);
-                    let v: Value = serde_json::from_str(&data).unwrap();
-                    let targets = v["targets"].as_array().unwrap();
-                    for target in targets.iter() {
-                        for t in target["crate_types"].as_array().unwrap().iter() {
-                            //    println!("crate_type: {}", t);
-                        }
-                    }
+                  //let data = String::from_utf8_lossy(&output.stdout);
+                  //let v: serde_json::Value = serde_json::from_str(&data).unwrap();
+                  //let targets = v["targets"].as_array().unwrap();
+                  //for target in targets.iter() {
+                  //    for t in target["crate_types"].as_array().unwrap().iter() {
+                  //        println!("crate_type: {}", t);
+                  //    }
+                  //}
                 } else {
                     println!("Not valid manifest");
                     println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
@@ -323,28 +322,28 @@ fn main() {
         println!("Done with updating!");
     }
 
-    if let Some(matches) = matches.subcommand_matches("download") {
+    if let Some(_matches) = matches.subcommand_matches("download") {
         reg.read();
         reg.download_src().unwrap();
         println!("Done with downloading!");
     }
 
-    if let Some(matches) = matches.subcommand_matches("validate") {
+    if let Some(_matches) = matches.subcommand_matches("validate") {
         reg.read();
         reg.validate_manifests();
     }
 
-    if let Some(matches) = matches.subcommand_matches("rewrite") {
+    if let Some(_matches) = matches.subcommand_matches("rewrite") {
         reg.read();
         reg.rewrite_manifests();
     }
 
-    if let Some(matches) = matches.subcommand_matches("build-callgraphs") {
+    if let Some(_matches) = matches.subcommand_matches("build-callgraphs") {
         reg.read();
         reg.build_callgraph();
     }
 
-    if let Some(matches) = matches.subcommand_matches("build-crates") {
+    if let Some(_matches) = matches.subcommand_matches("build-crates") {
         reg.read();
         if matches.is_present("nightly") {
             reg.compile(true);
