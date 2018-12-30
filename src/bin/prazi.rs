@@ -132,7 +132,7 @@ pub(crate) struct Registry {
     pub list: Vec<PraziCrate>,
 }
 
-type Result<T> = std::result::Result<T, Box<std::error::Error>>;
+type PraziResult<T> = std::result::Result<T, Box<std::error::Error>>;
 
 const N: usize = 5;
 
@@ -158,7 +158,7 @@ impl Registry {
         }
     }
 
-    fn download_src(&self) -> Result<()> {
+    fn download_src(&self) -> PraziResult<()> {
         let mut core = tokio_core::reactor::Core::new()?;
         let client = Client::new();
         let responses = stream::iter_ok(self.list.iter().cloned())
@@ -170,7 +170,8 @@ impl Registry {
                         .send()
                         .and_then(|mut res| {
                             std::mem::replace(res.body_mut(), Decoder::empty()).concat2()
-                        }).map(move |body| {
+                        })
+                        .map(move |body| {
                             let mut archive = Archive::new(GzDecoder::new(body.as_ref()));
                             let tar_dir = krate.dir_src();
                             let dst_dir = krate.dir();
@@ -197,6 +198,12 @@ impl Registry {
                                 &success_file,
                                 format!("{}", timestamp.format("%Y-%m-%d %H:%M:%S"))
                             ).expect("Unable to write file");
+                        })
+                        .then(|res: Result<(), reqwest::Error>| -> Result<(), reqwest::Error> {
+                            if let Err(error) = res {
+                                eprintln!("Error downloading: {:?}", error);
+                            }
+                            Ok(())
                         })
                     )
                 } else {
