@@ -51,6 +51,16 @@ lazy_static! {
     };
 }
 
+/// Get directory for crates.io index.
+fn config_index_dir() -> String {
+    CONFIG
+        .section(Some("storage"))
+        .unwrap()
+        .get("index_path")
+        .unwrap()
+        .to_string()
+}
+
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone)]
 pub struct PraziCrate {
     pub name: String,
@@ -104,12 +114,8 @@ const N: usize = 5;
 
 impl Registry {
     fn read(&mut self) {
-        let index = Index::new(format!("{}/_index", &**PRAZI_DIR));
-        if !index.exists() {
-            index
-                .retrieve()
-                .expect("Could not retrieve crates.io index");
-        }
+        let index = Index::new(config_index_dir());
+        index.retrieve_or_update().expect("could not retrieve crates.io index");
         for krate in index.crates() {
             for version in krate.versions().iter().rev() {
                 //we also consider yanked versions
@@ -122,7 +128,7 @@ impl Registry {
     }
 
     fn update(&mut self) {
-        let index = Index::new(format!("{}/_index", &**PRAZI_DIR));
+        let index = Index::new(config_index_dir());
         index.retrieve_or_update().expect("should not fail");
         for krate in index.crates() {
             for version in krate.versions().iter().rev() {
